@@ -1,0 +1,14 @@
+keys.js
+config 
+node_modules
+dist
+build
+coverage
+*.log
+raw
+processed
+data
+raw 
+processed
+*.env
+.env
