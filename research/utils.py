@@ -1,146 +1,136 @@
-# # research/utils.py
-# import re
-# from urllib.parse import urlparse
-# import socket
-# import pandas as pd 
-# def extract_features(url):
-#     features = []
-#     url = url.lower().strip()
-#     if not url.startswith(('http', 'https')): url = 'https://' + url
-    
-#     parsed = urlparse(url)
-#     domain = parsed.netloc
-    
-#     # 1. IP Address (UCI: -1 Phish, 1 Legit -> Your Model: 0 Phish, 1 Legit)
-#     try:
-#         socket.inet_aton(domain)
-#         features.append(0) 
-#     except:
-#         features.append(1) 
-
-#     # 2. URL Length (UCI: <54 Legit, 54-75 Suspicious, >75 Phish)
-#     url_len = len(url)
-#     if url_len < 54: features.append(1)
-#     elif 54 <= url_len <= 75: features.append(0) # In your 0/1 mapping, 0 is the "lower/danger" side
-#     else: features.append(0)
-
-    
-
-
-#     # 3. Shortening (0 Phish, 1 Legit)
-#     match = re.search(r'bit\.ly|goo\.gl|tinyurl|t\.co', url)
-#     features.append(0 if match else 1)
-
-#     # 4. Symbol @ (0 Phish, 1 Legit)
-#     features.append(0 if "@" in url else 1)
-
-#     # 5. Redirect // (0 Phish, 1 Legit)
-#     features.append(0 if url.rfind('//') > 7 else 1)
-
-#     # 6. Prefix/Suffix '-' in Domain (0 Phish, 1 Legit)
-#     features.append(0 if '-' in domain else 1)
-
-#     # 7. Subdomains (1 Legit, 0 Phish)
-#     dots = domain.count('.')
-#     features.append(1 if dots <= 2 else 0)
-
-#     # 8. HTTPS (1 Legit, 0 Phish)
-#     features.append(1 if parsed.scheme == 'https' else 0)
-
-#     # IMPORTANT: The UCI dataset has 30 specific features. 
-#     # If your model sees a bunch of "1"s (Legitimate) for the rest, 
-#     # it will stop flagging ChatGPT.
-#     while len(features) < 30:
-#         features.append(1) # Default the unknown features to 'Legitimate'
-
-#     return features
-
-
 import re
 import socket
-import pandas as pd
-from urllib.parse import urlparse
 import os
+import logging
+import ipaddress
+from urllib.parse import urlparse
+from typing import Set, Optional
+from difflib import SequenceMatcher
 
-# --- GLOBAL REPUTATION LOGIC ---
-# Get the directory where utils.py is located to find the csv
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_PATH = os.path.join(BASE_DIR, 'top-1m.csv')
+logger = logging.getLogger(__name__)
 
-try:
-    # We use 'header=None' if your CSV doesn't have column names
-    # Common format is: 1,google.com
-    df = pd.read_csv(CSV_PATH, names=['rank', 'domain'])
-    TOP_SITES = set(df['domain'].tolist())
-    print(f"✅ Successfully loaded {len(TOP_SITES)} trusted domains.")
-except Exception as e:
-    TOP_SITES = set()
-    print(f"⚠️ Warning: top-1m.csv not found or error loading. Trusted check disabled: {e}")
+# --- 1. SUPREME WHITELIST (No CSV needed) ---
+# These are the brands we protect from being cloned.
+# If a URL is in this list, it's 100% safe.
+# If a URL "looks" like these but isn't, it's a Clone.
+PROTECTED_BRANDS = {
+    "google.com": "Google",
+    "facebook.com": "Facebook",
+    "amazon.com": "Amazon",
+    "reddit.com": "Reddit",
+    "wikipedia.org": "Wikipedia",
+    "youtube.com": "YouTube",
+    "netflix.com": "Netflix",
+    "paypal.com": "PayPal",
+    "microsoft.com": "Microsoft",
+    "apple.com": "Apple",
+    "github.com": "GitHub",
+    "chatgpt.com": "OpenAI/ChatGPT"
+}
 
-def is_globally_trusted(url):
-    """Checks if the root domain is in the Top 1 Million list."""
+def is_globally_trusted(url: str) -> bool:
+    """
+    Returns True if the domain is an exact match for an official brand.
+    """
     try:
+        if not url: return False
         parsed = urlparse(url.lower().strip() if "://" in url else f"http://{url}")
-        domain = parsed.netloc.replace("www.", "")
-        
-        # Check the exact domain and the root (e.g., en.wikipedia.org -> wikipedia.org)
-        parts = domain.split('.')
-        if domain in TOP_SITES:
+        host = parsed.hostname or parsed.netloc.split(":")[0] or ""
+        domain = host.replace("www.", "")
+
+        # Check exact domain or root domain (e.g., mail.google.com -> google.com)
+        if domain in PROTECTED_BRANDS:
             return True
+            
+        parts = domain.split(".")
         if len(parts) >= 2:
             root = ".".join(parts[-2:])
-            if root in TOP_SITES:
+            if root in PROTECTED_BRANDS:
                 return True
         return False
-    except:
+    except Exception:
         return False
 
-# --- FEATURE EXTRACTION LOGIC ---
-def extract_features(url):
-    features = []
-    url = url.lower().strip()
-    if not url.startswith(('http', 'https')): url = 'https://' + url
-    
-    parsed = urlparse(url)
-    domain = parsed.netloc
-    
-    # 1. IP Address
+def detect_clone(url: str) -> Optional[str]:
+    """
+    CLONE DETECTION:
+    Checks if a suspicious URL is 'visually similar' to a protected brand.
+    Example: 'amaz0n.com' vs 'amazon.com'
+    """
     try:
-        socket.inet_aton(domain)
-        features.append(-1) 
-    except:
-        features.append(1) 
+        parsed = urlparse(url.lower().strip() if "://" in url else f"http://{url}")
+        host = parsed.hostname or parsed.netloc.split(":")[0] or ""
+        current_domain = host.replace("www.", "").split('.')[0] # Get 'amaz0n' from 'amaz0n.com'
+        
+        # If it's already on the trusted list, it's not a clone
+        if is_globally_trusted(url):
+            return None
 
-    # 2. URL Length
-    url_len = len(url)
-    if url_len < 54: features.append(1)
-    elif 54 <= url_len <= 75: features.append(0)
-    else: features.append(-1)
+        for brand_url, brand_name in PROTECTED_BRANDS.items():
+            brand_domain = brand_url.split('.')[0] # Get 'amazon'
+            
+            # Fuzzy matching: Check how similar the strings are (0.0 to 1.0)
+            similarity = SequenceMatcher(None, current_domain, brand_domain).ratio()
+            
+            # If similarity is very high (e.g. 85%+) or brand name is hidden inside
+            # (e.g. 'secure-login-google.com'), flag it as a clone.
+            if similarity >= 0.82 or (brand_domain in current_domain and len(current_domain) > len(brand_domain)):
+                return brand_name
+                
+        return None
+    except Exception:
+        return None
 
-    # 3. Shortening
-    match = re.search(r'bit\.ly|goo\.gl|tinyurl|t\.co', url)
-    features.append(-1 if match else 1)
+def extract_features(url: str):
+    """
+    Return a 30-feature vector compatible with the model.
+    """
+    features = []
+    try:
+        url = (url or "").lower().strip()
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
 
-    # 4. Symbol @
-    features.append(-1 if "@" in url else 1)
+        parsed = urlparse(url)
+        host = parsed.hostname or parsed.netloc.split(":")[0] or ""
+        domain = host
 
-    # 5. Redirect //
-    features.append(-1 if url.rfind('//') > 7 else 1)
+        # 1. IP Address detection
+        try:
+            ipaddress.ip_address(domain)
+            features.append(-1) 
+        except:
+            features.append(1) 
 
-    # 6. Prefix/Suffix '-'
-    features.append(-1 if '-' in domain else 1)
+        # 2. URL Length
+        url_len = len(url)
+        features.append(1 if url_len < 54 else (0 if url_len <= 75 else -1))
 
-    # 7. Subdomains
-    dots = domain.count('.')
-    if dots <= 2: features.append(1)
-    elif dots == 3: features.append(0)
-    else: features.append(-1)
+        # 3. Shortening services
+        match = re.search(r"(bit\.ly|goo\.gl|tinyurl|t\.co|ow\.ly|buff\.ly)", url)
+        features.append(-1 if match else 1)
 
-    # 8. HTTPS
-    features.append(1 if parsed.scheme == 'https' else -1)
+        # 4. @ symbol
+        features.append(-1 if "@" in url else 1)
 
-    # Fill to 30 features for the UCI model
-    while len(features) < 30:
-        features.append(1)
+        # 5. Redirect '//'
+        features.append(-1 if url.rfind("//") > 7 else 1)
 
-    return features
+        # 6. Prefix/Suffix '-' in domain
+        features.append(-1 if "-" in domain else 1)
+
+        # 7. Subdomains
+        dots = domain.count(".")
+        features.append(1 if dots <= 2 else (0 if dots == 3 else -1))
+
+        # 8. HTTPS
+        features.append(1 if parsed.scheme == "https" else -1)
+
+        # Fill to 30 features
+        while len(features) < 30:
+            features.append(1)
+
+        return features
+    except Exception as e:
+        logger.error(f"Feature extraction failed: {e}")
+        return [1] * 30

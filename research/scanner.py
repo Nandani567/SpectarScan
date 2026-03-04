@@ -1,59 +1,93 @@
+import logging
 import whois
 from datetime import datetime
 import socket
 from urllib.parse import urlparse
+import ipaddress
+import ssl
+
+logger = logging.getLogger(__name__)
+
+def _parse_date(value):
+    """Robust date parsing for various WHOIS formats."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, list) and value:
+        return _parse_date(value[0])
+    if isinstance(value, str):
+        # Remove common WHOIS noise
+        clean_val = value.split(' ')[0].strip()
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%Y.%m.%d"):
+            try:
+                return datetime.strptime(clean_val, fmt)
+            except:
+                continue
+    return None
+
+def _normalize_host(url):
+    """Clean the URL to get just the domain."""
+    try:
+        parsed = urlparse(url if "://" in url else f"http://{url}")
+        host = parsed.hostname or parsed.netloc.split(":")[0] or ""
+        host = host.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host
+    except:
+        return ""
 
 def get_domain_info(url):
-    # Normalize domain extraction
-    parsed = urlparse(url if "://" in url else f"http://{url}")
-    domain = parsed.netloc.replace("www.", "")
-    
+    host = _normalize_host(url)
     info = {
-        "domain": domain, 
-        "age_days": -1, 
-        "is_ssl": False, 
+        "domain": host,
+        "age_days": 0,  # Default to 0 instead of -1 to avoid math errors
+        "is_ssl": False,
         "registrar": "Unknown",
-        "ip_address": "Unknown"
+        "ip_address": "Unknown",
     }
 
-    # 1. IP Address Lookup (Usually always works)
+    if not host: return info
+
+    # 1. DNS & IP Lookup
     try:
-        info["ip_address"] = socket.gethostbyname(domain)
+        info["ip_address"] = socket.gethostbyname(host)
     except:
         pass
 
-    # 2. WHOIS & Age Check
+    # 2. WHOIS Analysis
     try:
-        w = whois.whois(domain)
-        created = w.creation_date
-        
-        # Handle cases where multiple dates are returned
-        if isinstance(created, list):
-            created = created[0]
-        
-        if created and isinstance(created, datetime):
-            info["age_days"] = (datetime.now() - created).days
-            info["registrar"] = w.registrar or "Unknown"
-        
-        # --- SUPREME OVERRIDE FOR TRUSTED CORPORATIONS ---
-        # Big companies (Google, YouTube, Microsoft) use specific registrars.
-        # Scammers almost NEVER use these high-security registrars.
-        reg_lower = str(w.registrar).lower()
-        trusted_corps = ['markmonitor', 'google', 'microsoft', 'csc corporate', 'amazon', 'apple']
-        
-        if any(corp in reg_lower for corp in trusted_corps):
-            if info["age_days"] < 365: # If lookup failed or shows -1
-                info["age_days"] = 5000 # Force "Trusted Old" status
-                info["registrar"] = f"{w.registrar} (Verified Corporate)"
+        # Check if it's an IP first
+        ipaddress.ip_address(host)
+        info["registrar"] = "Direct IP (No WHOIS)"
     except:
-        # If WHOIS is totally blocked, we keep age_days at -1
-        pass
+        try:
+            w = whois.whois(host)
+            created = _parse_date(w.creation_date)
+            
+            if created:
+                # Remove timezone info for calculation
+                created = created.replace(tzinfo=None)
+                info["age_days"] = (datetime.now() - created).days
+                info["registrar"] = str(getattr(w, "registrar", "Unknown"))
+            
+            # --- SUPREME OVERRIDE ---
+            # If the registrar is a high-end corporate provider, it's NOT a phishing site.
+            trusted_providers = ["markmonitor", "csc corporate", "amazon", "google", "godaddy", "namecheap"]
+            reg_lower = info["registrar"].lower()
+            if any(p in reg_lower for p in trusted_providers):
+                # Ensure official sites are seen as "Old" even if WHOIS fails
+                if info["age_days"] <= 0:
+                    info["age_days"] = 3650 # Assume 10 years for known registrars
+        except Exception as e:
+            logger.debug(f"WHOIS Failed for {host}: {e}")
 
-    # 3. SSL Check
+    # 3. SSL Handshake (Strict)
     try:
-        socket.create_connection((domain, 443), timeout=1)
-        info["is_ssl"] = True
+        context = ssl.create_default_context()
+        with socket.create_connection((host, 443), timeout=2) as sock:
+            with context.wrap_socket(sock, server_hostname=host) as ssock:
+                info["is_ssl"] = True
     except:
-        pass
+        info["is_ssl"] = False
 
     return info
