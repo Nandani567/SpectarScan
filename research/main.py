@@ -49,10 +49,10 @@ def load_models():
     try:
         if RF_PATH.exists():
             rf_model = joblib.load(RF_PATH)
-            logger.info(f"✅ RF Model Loaded: {RF_PATH}")
+            logger.info(f" RF Model Loaded: {RF_PATH}")
         if XGB_PATH.exists():
             xgb_model = joblib.load(XGB_PATH)
-            logger.info(f"✅ XGB Model Loaded: {XGB_PATH}")
+            logger.info(f"XGB Model Loaded: {XGB_PATH}")
 
         # Safe Feature Name extraction (Fixes the ValueError: ambiguous truth value)
         rf_f = getattr(rf_model, "feature_names_in_", None)
@@ -66,7 +66,7 @@ def load_models():
             FEATURE_NAMES = [f"f{i}" for i in range(30)]
             
     except Exception as e:
-        logger.error(f"❌ Critical Model Load Error: {e}")
+        logger.error(f" Critical Model Load Error: {e}")
 
 load_models()
 
@@ -169,6 +169,6 @@ async def predict(request: URLRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
     

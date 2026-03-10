@@ -1,9 +1,12 @@
-fastapi
-uvicorn
-joblib
-scikit-learn
-xgboost
-pandas
-numpy
-python-whois
-pyOpenSSL
+# requirements.txt
+fastapi==0.100.0
+uvicorn[standard]==0.22.0
+joblib==1.3.2
+pandas==2.2.2
+python-dotenv==1.0.0
+requests==2.31.0
+scikit-learn==1.3.2
+xgboost==1.7.6
+python-whois==0.7.3
+python-dateutil==2.8.2
+pytest==7.4.2

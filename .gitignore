@@ -12,3 +12,7 @@ raw
 processed
 *.env
 .env
+__pycache__/
+*.pyc
+.env
+venv/
