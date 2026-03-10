@@ -30,17 +30,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 3. Secure Fetch to your Local Backend
             // We only send the URL. No personal data, no cookies.
-            const response = await fetch('http://127.0.0.1:8000/predict', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: tab.url })
-            });
+        const response = await fetch('https://spectarscan.onrender.com/predict', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: tab.url })
+});
 
             if (!response.ok) throw new Error('Backend Unreachable');
 
             const data = await response.json();
 
-            // 4. Update UI with the Response
+            // 4. Update UI with the Response`
             verdictEl.innerText = data.verdict;
             riskEl.innerText = `Risk: ${data.risk_level}`;
             aiScoreEl.innerText = data.scores.ai_certainty;
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("SpecterScan Error:", error);
             verdictEl.innerText = "Connection Failed";
-            riskEl.innerText = "Ensure your Python backend is running.";
+            riskEl.innerText = "Server unreachable. Try again.";
             statusCard.style.background = "#2c3e50";
         } finally {
             scanBtn.disabled = false;
