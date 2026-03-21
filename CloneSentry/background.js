@@ -1,11 +1,27 @@
+const API_URL = "https://spectarscan.onrender.com/predict";
+
+console.log("SpecterScan service worker running");
+
+// Prevent duplicate scans for same URL
+let lastScannedUrl = "";
+
+// Listen for tab updates
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
+    // Only run when page fully loads
     if (changeInfo.status !== "complete") return;
+
+    // Skip invalid URLs
     if (!tab.url || !tab.url.startsWith("http")) return;
 
-    try {
+    // Avoid scanning same URL repeatedly
+    if (tab.url === lastScannedUrl) return;
+    lastScannedUrl = tab.url;
 
-        const response = await fetch("https://spectarscan.onrender.com/predict", {
+    console.log("Scanning:", tab.url);
+
+    try {
+        const res = await fetch(API_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -13,43 +29,22 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
             body: JSON.stringify({ url: tab.url })
         });
 
-        const data = await response.json();
+        if (!res.ok) throw new Error("API failed");
 
-        console.log("SpecterScan result:", data);
+        const data = await res.json();
 
-        if (data.is_phishing) {
+        console.log("Result:", data);
 
-            chrome.scripting.executeScript({
-                target: { tabId: tabId },
-                func: showWarning,
-                args: [data.verdict]
-            });
+        // Send result to content script
+        chrome.tabs.sendMessage(tabId, {
+            type: "SHOW_RESULT",
+            verdict: data.verdict,
+            risk: data.risk_level,
+            is_phishing: data.is_phishing
+        });
 
-        }
-
-    } catch (err) {
-        console.error("SpecterScan error:", err);
+    } catch (error) {
+        console.error("SpecterScan Error:", error);
     }
 
 });
-
-
-function showWarning(verdict) {
-
-    const banner = document.createElement("div");
-
-    banner.style.position = "fixed";
-    banner.style.top = "0";
-    banner.style.left = "0";
-    banner.style.width = "100%";
-    banner.style.background = "#c0392b";
-    banner.style.color = "white";
-    banner.style.padding = "15px";
-    banner.style.fontSize = "16px";
-    banner.style.fontWeight = "bold";
-    banner.style.zIndex = "999999";
-
-    banner.innerText = "⚠ SpecterScan Warning: " + verdict;
-
-    document.body.prepend(banner);
-}

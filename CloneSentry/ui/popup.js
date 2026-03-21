@@ -4,14 +4,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const verdictEl = document.getElementById('verdict');
     const riskEl = document.getElementById('risk-lvl');
     
-    // Results Elements
+   
     const aiScoreEl = document.getElementById('ai-score');
     const vtHitsEl = document.getElementById('vt-hits');
     const ageEl = document.getElementById('age');
     const sslEl = document.getElementById('ssl');
 
     scanBtn.addEventListener('click', async () => {
-        // 1. UI Loading State
+      
         verdictEl.innerText = "Analyzing Page...";
         riskEl.innerText = "Checking patterns & threat databases";
         statusCard.style.background = "#7f8c8d"; // Neutral Gray
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
             aiScoreEl.innerText = data.scores.ai_certainty;
             vtHitsEl.innerText = `${data.scores.virus_total_hits} Engines`;
             ageEl.innerText = data.security_report.domain_age;
-            sslEl.innerText = data.security_report.ssl_active ? "🔒 Active" : "⚠️ Missing";
+            sslEl.innerText = data.security_report.ssl_active ? "Active" : "Missing";
 
             // 5. Dynamic Styling based on Risk
             if (data.is_phishing || data.risk_level === "High") {
