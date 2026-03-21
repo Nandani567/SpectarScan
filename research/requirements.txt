@@ -10,3 +10,4 @@ xgboost==1.7.6
 python-whois==0.7.3
 python-dateutil==2.8.2
 pytest==7.4.2
+slowapi==0.1.9
