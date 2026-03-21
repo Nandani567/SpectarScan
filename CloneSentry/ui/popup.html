@@ -10,6 +10,7 @@
             background-color: #f9f9f9; 
             color: #333; 
         }
+
         .header { 
             background: #2c3e50; 
             color: white; 
@@ -19,9 +20,9 @@
             font-weight: 600;
             letter-spacing: 0.5px;
         }
+
         .container { padding: 15px; }
         
-        /* The main status display */
         .status-box { 
             border-radius: 12px; 
             padding: 20px; 
@@ -29,12 +30,12 @@
             color: white; 
             margin-bottom: 15px; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: background 0.4s ease;
+            transition: background 0.3s ease;
         }
+
         #verdict { font-size: 18px; font-weight: bold; margin: 0; }
         #risk-lvl { font-size: 13px; opacity: 0.9; display: block; margin-top: 5px; }
 
-        /* Technical Data Section */
         .details-group {
             background: white;
             border-radius: 8px;
@@ -42,6 +43,7 @@
             border: 1px solid #eee;
             margin-bottom: 15px;
         }
+
         .info-row { 
             display: flex; 
             justify-content: space-between; 
@@ -49,11 +51,26 @@
             font-size: 13px;
             border-bottom: 1px solid #f1f1f1;
         }
+
         .info-row:last-child { border-bottom: none; }
+
         .label { color: #7f8c8d; font-weight: 500; }
         .value { color: #2c3e50; font-weight: 600; }
 
-        /* Action Button */
+      
+        input { 
+            width: 100%; 
+            padding: 10px; 
+            border-radius: 6px; 
+            border: 1px solid #ccc;
+            font-size: 13px;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: #3498db;
+        }
+
         button { 
             width: 100%; 
             padding: 12px; 
@@ -66,6 +83,7 @@
             font-weight: 600;
             transition: transform 0.1s, background 0.2s;
         }
+
         button:hover { background: #2980b9; }
         button:active { transform: scale(0.98); }
         button:disabled { background: #bdc3c7; cursor: not-allowed; }
@@ -78,13 +96,15 @@
         }
     </style>
 </head>
+
 <body>
     <div class="header">SpecterScan Supreme</div>
     
     <div class="container">
+
         <div id="status-card" class="status-box" style="background: #7f8c8d;">
             <p id="verdict">Ready to Scan</p>
-            <small id="risk-lvl">Click the button to begin analysis</small>
+            <small id="risk-lvl">Auto + Manual URL Scan</small>
         </div>
 
         <div class="details-group">
@@ -101,15 +121,17 @@
                 <span id="age" class="value">-</span>
             </div>
             <div class="info-row">
-                <span class="label">Security (SSL)</span>
+                <span class="label">SSL Security</span>
                 <span id="ssl" class="value">-</span>
             </div>
         </div>
 
-        <button id="scanBtn">Scan Current Page</button>
+    
+
+        <button id="scanBtn">Scan</button>
         
         <div class="footer">
-            Privacy Protected • Local Processing
+            Real-time Threat Detection • Privacy Safe
         </div>
     </div>
 

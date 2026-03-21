@@ -41,6 +41,8 @@ Browser Extension → FastAPI Backend → Threat Intelligence APIs
 - Backend analyzes using ML + APIs
 - Returns risk score and verdict
 
+![Demo](assets/image1.png)
+
 ## ⚙️ Installation
 
 1. Download the extension folder
