@@ -66,6 +66,8 @@ Response:
 - AI score
 - threat intelligence data
 
+
+![Demo](assets/image3.png)
 ## 🎯 Why this project?
 
 Phishing attacks are increasing rapidly. This project combines machine learning and real-world threat intelligence to provide practical, real-time protection inside the browser.
@@ -77,7 +79,7 @@ Phishing attacks are increasing rapidly. This project combines machine learning 
 - Rate limiting implemented
 - Token-based request validation
 - No sensitive data exposed to client
-
+![Demo](assets/image4.png)
 
 ## 📌 Future Improvements
 
