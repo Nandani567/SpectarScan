@@ -11,6 +11,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
+from fastapi import Request
+
 
 # Local imports - ensuring they work regardless of how script is called
 try:
@@ -27,10 +33,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SpecterScan Supreme")
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=["chrome-extension://mfnbcmbcmegajcidmgodikdonidhfggo"],
+    allow_methods=["POST"],
     allow_headers=["*"],
 )
 
@@ -71,30 +79,62 @@ def load_models():
 load_models()
 
 VT_KEY = os.getenv("VT_API_KEY")
+VT_CACHE = {}
+BACKEND_TOKEN = os.getenv("BACKEND_TOKEN")
 
 class URLRequest(BaseModel):
     url: str
 
+token = request.headers.get("x-api-key")
+if token != BACKEND_TOKEN:
+    raise HTTPException(status_code=403, detail="Forbidden")
+
+
+
 def check_virustotal(url: str) -> int:
-    """Returns the number of malicious hits from VT."""
+    if url in VT_CACHE:
+        return VT_CACHE[url]
+
     if not VT_KEY or VT_KEY == "your_actual_api_key_here":
         return 0
+
     try:
         url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
         headers = {"x-apikey": VT_KEY}
-        resp = requests.get(f"https://www.virustotal.com/api/v3/urls/{url_id}", headers=headers, timeout=5)
+        resp = requests.get(
+            f"https://www.virustotal.com/api/v3/urls/{url_id}",
+            headers=headers,
+            timeout=3
+        )
+
         if resp.status_code == 200:
-            return resp.json().get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious", 0)
+            result = resp.json().get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious", 0)
+            VT_CACHE[url] = result
+            return result
+
     except Exception:
         return 0
+
     return 0
 
+
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request, exc):
+    return JSONResponse(
+        status_code=429,
+        content={"error": "Rate limit exceeded"}
+    )
+
+
 @app.post("/predict")
-async def predict(request: URLRequest):
+@limiter.limit("20/minute")
+async def predict(request: Request, body: URLRequest):
     if rf_model is None or xgb_model is None:
         raise HTTPException(status_code=503, detail="Models not loaded")
 
-    url = request.url.lower().strip()
+    url = body.url.lower().strip()
     
     # 1. Gather Intelligence
     impersonated = detect_clone(url)   # NEW: Checks for g00gle.com etc.
